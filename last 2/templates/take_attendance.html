@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Take Attendance</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Roboto', sans-serif;
+      color: #fff;
+      padding: 20px;
+      /* Background with gradient overlay and subtle classroom photo */
+      background:
+        linear-gradient(to bottom, rgba(24, 25, 26, 0.8), rgba(0, 0, 0, 0.8)),
+        url('https://media.istockphoto.com/id/2075583061/photo/group-of-indian-village-students-in-school-uniform-sitting-in-classroom-doing-homework.jpg?s=612x612&w=0&k=20&c=cR_BxSTfi8q7x818rdWncCpKjYF5PfiSEef3XX7j72w=') no-repeat center center fixed;
+      background-size: cover;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    h2 {
+      margin: 20px 0 30px;
+      font-size: 2.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.6);
+      transition: color 0.4s ease;
+    }
+    h2:hover, h2:focus {
+      color: #d1eaff;
+      outline: none;
+    }
+
+    .video-container {
+      position: relative;
+      width: 700px;
+      height: 480px;
+      border-radius: 20px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+      overflow: hidden;
+      background: #000000ff;
+      margin-bottom: 25px;
+      animation: fadeInScale 1s ease forwards;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 20px;
+    }
+
+    #capture {
+      background-color: #fff;
+      color: #000000ff;
+      border: none;
+      padding: 15px 45px;
+      border-radius: 50px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 7px 20px rgba(255, 255, 255, 0.7);
+      transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.25s ease;
+      user-select: none;
+      outline-offset: 4px;
+      filter: drop-shadow(0 0 4px #b91b13ff);
+    }
+    #capture:hover:not(:disabled),
+    #capture:focus-visible {
+      background-color: #f1f1f1;
+      transform: scale(1.08);
+      box-shadow: 0 10px 30px rgba(248, 0, 0, 0.7);
+      outline: none;
+    }
+    #capture:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+      box-shadow: none;
+    }
+
+    #canvas.preview {
+      display: block !important;
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 20px;
+      animation: flash 0.35s ease forwards;
+      pointer-events: none;
+      z-index: 20;
+    }
+    @keyframes flash {
+      0% { opacity: 0; }
+      50% { opacity: 0.85; }
+      100% { opacity: 0; }
+    }
+    @keyframes fadeInScale {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    #message {
+      margin-top: 15px;
+      min-height: 1.5em;
+      font-weight: 700;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.6);
+      transition: color 0.3s ease;
+    }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .video-container {
+        width: 90vw;
+        height: calc(90vw * 0.75);
+      }
+      h2 {
+        font-size: 2.2rem;
+      }
+      #capture {
+        padding: 14px 35px;
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+
+  <h2 tabindex="0">Take Attendance</h2>
+
+  <div class="video-container" role="region" aria-label="Live video preview from your camera">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+  </div>
+
+  <button id="capture" type="button" aria-label="Capture and upload attendance photo">Capture &amp; Upload</button>
+
+  <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data" style="display:none;">
+    <input type="file" id="photo" name="photo" accept="image/jpeg,image/png" />
+  </form>
+
+  <div id="message" role="alert" aria-live="polite"></div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureButton = document.getElementById('capture');
+    const photoInput = document.getElementById('photo');
+    const form = document.getElementById('uploadForm');
+    const message = document.getElementById('message');
+
+    // Access webcam (prefer rear camera if available)
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(() => {
+        alert("Could not access the camera. Please grant camera permissions or use a supported device.");
+        captureButton.disabled = true;
+      });
+
+    captureButton.addEventListener('click', () => {
+      captureButton.disabled = true;
+      message.textContent = 'Capturing photo and uploading...';
+
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.classList.add('preview');
+
+      canvas.toBlob(blob => {
+        if (!blob) {
+          message.textContent = "Failed to capture image.";
+          captureButton.disabled = false;
+          canvas.classList.remove('preview');
+          return;
+        }
+
+        // Prepare file and assign to hidden input
+        const file = new File([blob], "group_photo.jpg", { type: "image/jpeg" });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        photoInput.files = dataTransfer.files;
+
+        // Submit form
+        form.submit();
+
+        // Clear message and enable button after delay
+        setTimeout(() => {
+          message.textContent = '';
+          captureButton.disabled = false;
+          canvas.classList.remove('preview');
+        }, 3500);
+      }, 'image/jpeg', 0.92);
+    });
+  </script>
+</body>
+</html>
